@@ -1,3 +1,6 @@
+// FIX: Add and export the AppView type to resolve the import error in BottomNav.tsx.
+export type AppView = 'map' | 'list';
+
 export interface Property {
   id: string;
   area: string;
@@ -32,5 +35,3 @@ export interface AIAnalysis {
   redFlags: string[];
   keyFeatures: string[];
 }
-
-export type AppView = 'map' | 'list';

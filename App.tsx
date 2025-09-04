@@ -5,10 +5,8 @@ import { FilterPanel } from './components/FilterPanel';
 import { PropertyDetail } from './components/PropertyDetail';
 import { Loader } from './components/Loader';
 import { useProperties } from './hooks/useProperties';
-import type { Property, FilterState, AIAnalysis, AppView, ParsedProperty } from './types';
+import type { Property, FilterState, AIAnalysis, ParsedProperty } from './types';
 import { analyzeDescriptionWithAI, extractPropertyFromImage, getPropertyCoordinates } from './services/geminiService';
-import { BottomNav } from './components/BottomNav';
-import { PropertyListView } from './components/PropertyListView';
 import { UploadView } from './components/UploadView';
 import { Modal } from './components/Modal';
 
@@ -30,8 +28,6 @@ const App: React.FC = () => {
   const [mapZoom, setMapZoom] = useState<number>(11);
 
   // Mobile-specific state
-  const [activeView, setActiveView] = useState<AppView>('map');
-  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const filteredProperties = useMemo(() => {
@@ -54,14 +50,12 @@ const App: React.FC = () => {
   const handlePropertySelect = useCallback((property: Property) => {
     setSelectedProperty(property);
     setAnalysisResult(null);
-    // FIX: No longer force a switch to the map view. Keep the user in their current context (list or map).
   }, []);
   
   const handleViewOnMap = useCallback((property: Property) => {
     setMapCenter([property.location.lat, property.location.lng]);
     setMapZoom(15); // Zoom in closer to the selected property
     setSelectedProperty(null); // Close the detail view
-    setActiveView('map'); // Switch to the map view
   }, []);
 
   const handleCloseDetail = useCallback(() => {
@@ -127,12 +121,19 @@ const App: React.FC = () => {
     }
     
     if (successCount > 0) {
-      setActiveView('list');
       setIsUploadOpen(false);
     }
 
     return { success: successCount, failed: failedCount };
   };
+  
+  const handleAddProperty = useCallback((newProperty: Property) => {
+    setProperties(prev => [...prev, newProperty]);
+    // Fly to the new property on the map
+    setMapCenter([newProperty.location.lat, newProperty.location.lng]);
+    setMapZoom(16);
+  }, [setProperties]);
+
 
   const uniqueAreas = useMemo(() => {
     const areas = new Set(properties.map(p => p.area));
@@ -146,7 +147,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-gray-100 font-sans">
-      <Header onFilterClick={() => setIsFilterPanelOpen(true)} onUploadClick={() => setIsUploadOpen(true)} />
+      <Header onUploadClick={() => setIsUploadOpen(true)} />
 
       {loading && <Loader message="Initializing AI and loading property data..." />}
       {error && <div className="text-center p-4 text-red-400 bg-red-900">{error}</div>}
@@ -172,42 +173,37 @@ const App: React.FC = () => {
               bedrooms={uniqueBedroomCounts}
               propertyCount={filteredProperties.length}
               isOverlay={false}
+              onAddProperty={handleAddProperty}
             />
           )}
         </div>
         
-        {/* --- Main Content Area (Map/List for Mobile, Map for Desktop) --- */}
+        {/* --- Main Content Area --- */}
         <div className="flex-1 h-full relative">
-           <div className={`h-full w-full md:hidden ${activeView === 'map' ? 'block' : 'hidden'}`}>
-                <MapView properties={filteredProperties} onMarkerClick={handlePropertySelect} center={mapCenter} zoom={mapZoom} />
-           </div>
-           <div className={`h-full w-full md:hidden ${activeView === 'list' ? 'block' : 'hidden'}`}>
-                <PropertyListView properties={filteredProperties} onPropertySelect={handlePropertySelect} />
-           </div>
-           
+            {/* Desktop Map */}
             <div className="hidden md:block h-full w-full">
                 <MapView properties={filteredProperties} onMarkerClick={handlePropertySelect} center={mapCenter} zoom={mapZoom} />
             </div>
+
+            {/* Mobile View: Map + Inline Filters */}
+            <div className="md:hidden flex flex-col h-full w-full overflow-y-auto">
+                <div className="h-[50vh] flex-shrink-0">
+                    <MapView properties={filteredProperties} onMarkerClick={handlePropertySelect} center={mapCenter} zoom={mapZoom} />
+                </div>
+                <div className="flex-grow bg-gray-800">
+                    <FilterPanel
+                        filters={filters}
+                        setFilters={setFilters}
+                        areas={uniqueAreas}
+                        bedrooms={uniqueBedroomCounts}
+                        propertyCount={filteredProperties.length}
+                        isOverlay={false}
+                        onAddProperty={handleAddProperty}
+                    />
+                </div>
+            </div>
         </div>
       </main>
-
-      <div className="md:hidden">
-        <BottomNav activeView={activeView} setActiveView={setActiveView} onUploadClick={() => setIsUploadOpen(true)} />
-      </div>
-
-      {isFilterPanelOpen && (
-        <div className="md:hidden absolute inset-0 z-40 bg-gray-800 animate-slide-in-up">
-            <FilterPanel
-              filters={filters}
-              setFilters={setFilters}
-              areas={uniqueAreas}
-              bedrooms={uniqueBedroomCounts}
-              propertyCount={filteredProperties.length}
-              isOverlay={true}
-              onClose={() => setIsFilterPanelOpen(false)}
-            />
-        </div>
-      )}
 
       {selectedProperty && (
          <div className="md:hidden absolute inset-0 z-50 bg-gray-800 animate-slide-in-up">

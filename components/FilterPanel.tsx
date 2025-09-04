@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import type { FilterState } from '../types';
+import type { FilterState, ParsedProperty, Property } from '../types';
 import { Modal } from './Modal';
+import { extractPropertyFromText, getPropertyCoordinates } from '../services/geminiService';
+
 
 interface FilterPanelProps {
   filters: FilterState;
@@ -10,6 +12,7 @@ interface FilterPanelProps {
   propertyCount: number;
   isOverlay: boolean;
   onClose?: () => void;
+  onAddProperty: (property: Property) => void;
 }
 
 const formatPrice = (price: number) => {
@@ -25,8 +28,128 @@ const SocialIcon = () => (
     </svg>
 );
 
+const SparklesIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6.273 8.273l2.828 2.828M8.273 6.273l2.828-2.828M12 2v2M12 20v2M22 12h-2M4 12H2M17.727 6.273l-2.828 2.828M15.727 17.727l-2.828-2.828M12 17.727a6 6 0 100-12 6 6 0 000 12z" />
+    </svg>
+);
 
-export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, setFilters, areas, bedrooms, propertyCount, isOverlay, onClose }) => {
+const samplePost = `FOR SALE in Hittin district!
+
+Amazing offer on a beautiful 3-bedroom duplex apartment in The Boulevard project. Features a huge open-plan living space and premium marble flooring. The project has a private cinema and gardens. Perfect for a family.
+
+Price is SAR 2,100,000. Serious buyers only, please DM.`;
+
+const AiSimulationModal: React.FC<{
+    onClose: () => void;
+    onAddProperty: (property: Property) => void;
+}> = ({ onClose, onAddProperty }) => {
+    const [postText, setPostText] = useState(samplePost);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [parsedResult, setParsedResult] = useState<ParsedProperty | null>(null);
+
+    const handleAnalyze = async () => {
+        setIsAnalyzing(true);
+        setError(null);
+        setParsedResult(null);
+        try {
+            const result = await extractPropertyFromText(postText);
+            setParsedResult(result);
+        } catch (err) {
+            setError("The AI failed to analyze the text. Please try modifying it or try again.");
+            console.error(err);
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    const handleAddToMap = async () => {
+        if (!parsedResult) return;
+
+        try {
+            const coordinatesMap = await getPropertyCoordinates([parsedResult.housingProject]);
+            const coords = coordinatesMap[parsedResult.housingProject];
+            const isValidCoords = coords && typeof coords.lat === 'number' && typeof coords.lng === 'number';
+            const location = isValidCoords ? coords : { lat: 24.7136, lng: 46.6753 };
+            
+            const newProperty: Property = {
+              ...parsedResult,
+              id: `social-${Date.now()}`,
+              location,
+              imageUrl: `https://picsum.photos/seed/social-${Date.now()}/400/250`,
+            };
+            
+            onAddProperty(newProperty);
+            onClose();
+        } catch (err) {
+            setError("Could not get coordinates for this property. It cannot be added to the map.");
+            console.error(err);
+        }
+    };
+    
+    return (
+        <>
+            <h3 className="text-lg font-bold text-cyan-400">Live AI Simulation: Finding Deals on Facebook</h3>
+            <p className="mt-2 text-sm text-gray-300">
+                Due to Facebook's strict privacy rules, direct integration isn't possible. This simulation shows how our AI can analyze a social media post in real-time to find new properties.
+            </p>
+            <div className="mt-4 space-y-4">
+                <div>
+                    <label htmlFor="post-text" className="block text-sm font-semibold text-gray-200 mb-1">Sample Facebook Post (Editable)</label>
+                    <textarea
+                        id="post-text"
+                        rows={8}
+                        value={postText}
+                        onChange={(e) => setPostText(e.target.value)}
+                        className="w-full bg-gray-800 border border-gray-600 rounded-md p-2 text-gray-200 focus:ring-cyan-500 focus:border-cyan-500"
+                    />
+                </div>
+                
+                <button
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing}
+                  className="w-full flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                >
+                    <SparklesIcon />
+                  {isAnalyzing ? 'Analyzing Post...' : 'Analyze Post with AI'}
+                </button>
+                
+                {isAnalyzing && (
+                    <div className="flex justify-center items-center p-4">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+                        <p className="ml-3 text-gray-300">AI is reading the post...</p>
+                    </div>
+                )}
+
+                {error && <p className="text-center text-red-400 bg-red-900/50 p-2 rounded-md">{error}</p>}
+                
+                {parsedResult && (
+                    <div className="space-y-3 animate-fade-in">
+                        <h4 className="font-semibold text-gray-100">AI Extraction Result:</h4>
+                        <pre className="bg-gray-900 p-3 rounded-lg text-xs text-cyan-300 overflow-x-auto">
+                            {JSON.stringify(parsedResult, null, 2)}
+                        </pre>
+                        <button
+                            onClick={handleAddToMap}
+                            className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                        >
+                            Add to Map
+                        </button>
+                    </div>
+                )}
+            </div>
+            
+            <div className="mt-6 text-right">
+                <button onClick={onClose} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                    Close
+                </button>
+            </div>
+        </>
+    )
+}
+
+export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, setFilters, areas, bedrooms, propertyCount, isOverlay, onClose, onAddProperty }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,28 +272,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, setFilters, a
             </div>
 
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-                <h3 className="text-lg font-bold text-cyan-400">Conceptual Feature: Social Media Sync</h3>
-                <p className="mt-2 text-sm text-gray-300">
-                    This feature demonstrates how the app could find new housing opportunities by scanning social media.
-                </p>
-                <div className="mt-4 p-3 bg-gray-800 rounded-lg border border-gray-600">
-                    <h4 className="font-semibold text-gray-100">How it would work:</h4>
-                    <ul className="list-disc list-inside mt-2 text-sm text-gray-400 space-y-1">
-                        <li>Requires a secure, server-side backend service.</li>
-                        <li>You would securely authenticate your Facebook account.</li>
-                        <li>The service would monitor specified housing groups for new posts.</li>
-                        <li>AI would parse posts to extract details like price, location, and features.</li>
-                        <li>AI would also scan comments for fraud warnings to filter out scams.</li>
-                    </ul>
-                </div>
-                <p className="mt-4 text-xs text-gray-500">
-                    Directly implementing this in a frontend-only web application is not feasible due to security and technical limitations (CORS, API policies).
-                </p>
-                <div className="mt-6 text-right">
-                    <button onClick={() => setIsModalOpen(false)} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                        Got it!
-                    </button>
-                </div>
+                <AiSimulationModal onClose={() => setIsModalOpen(false)} onAddProperty={onAddProperty} />
             </Modal>
         </div>
     );

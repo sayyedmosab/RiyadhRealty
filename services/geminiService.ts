@@ -188,3 +188,46 @@ export async function extractPropertyFromImage(base64Image: string, mimeType: st
 
   return robustJSONParse<ParsedProperty>(response.text, "AI failed to extract valid property JSON from the image.");
 }
+
+export async function extractPropertyFromText(text: string): Promise<ParsedProperty> {
+  const model = 'gemini-2.5-flash';
+  
+  const prompt = `You are an expert real estate data extractor. Analyze the provided text from a social media post about a property. Extract the following details and return them as a single, clean JSON object.
+    
+    **Instructions:**
+    1.  **area:** The district or neighborhood in Riyadh (e.g., "Al-Malqa", "Hittin").
+    2.  **fileName:** Use a timestamp or a random string.
+    3.  **housingProject:** The main name or title of the property or project. If not mentioned, infer a suitable name from the area, e.g., "Hittin Apartment".
+    4.  **price:** The numerical price in SAR. Extract only the number.
+    5.  **features:** The full description text.
+    6.  **bedrooms:** The number of bedrooms. Infer from text like "3-bedroom" or "4 BR". If not mentioned, set to null.
+    
+    Your entire response must be ONLY the JSON object. Do not add any text before or after, and do not use markdown formatting.
+    
+    **Post Text:**
+    """
+    ${text}
+    """
+    `;
+
+  const response = await ai.models.generateContent({
+    model,
+    contents: prompt,
+     config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+                area: { type: Type.STRING },
+                fileName: { type: Type.STRING },
+                housingProject: { type: Type.STRING },
+                price: { type: Type.NUMBER },
+                features: { type: Type.STRING },
+                bedrooms: { type: Type.INTEGER, nullable: true },
+            }
+        }
+    }
+  });
+
+  return robustJSONParse<ParsedProperty>(response.text, "AI failed to extract valid property JSON from the text.");
+}

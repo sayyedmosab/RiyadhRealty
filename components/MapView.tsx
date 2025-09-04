@@ -10,11 +10,9 @@ interface MapViewProps {
   zoom: number;
 }
 
-// This component will handle map view updates
 const MapUpdater: React.FC<{ center: [number, number], zoom: number }> = ({ center, zoom }) => {
   const map = useMap();
   useEffect(() => {
-    // FIX: The `pan` property is not a valid option for `setView`. The animation duration is controlled by the `duration` property at the top level of the options object.
     map.setView(center, zoom, {
         animate: true,
         duration: 1,
@@ -23,19 +21,78 @@ const MapUpdater: React.FC<{ center: [number, number], zoom: number }> = ({ cent
   return null;
 };
 
-export const MapView: React.FC<MapViewProps> = ({ properties, onMarkerClick, center, zoom }) => {
-  
-  const getIconUrl = (projectId: string) => {
-    let hash = 0;
-    for (let i = 0; i < projectId.length; i++) {
-        const char = projectId.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-    }
-    const hue = hash % 360;
-    return `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-hsl(${hue}, 80%, 60%).png`;
-  };
+// SVG for a villa or standalone house.
+const houseIconSvg = (color: string) => `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${color}" class="w-8 h-8 drop-shadow-lg">
+    <path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0L2.47 11.47a.75.75 0 101.06 1.06l8.94-8.94z" />
+    <path d="M14.25 5.25a.75.75 0 00-1.06 0l-8.94 8.94a.75.75 0 101.06 1.06L14.25 6.31a.75.75 0 000-1.06zM3.375 12.75a.75.75 0 00-1.06 0l-1.5 1.5a.75.75 0 000 1.06l8.69 8.69a.75.75 0 001.06 0l1.5-1.5a.75.75 0 000-1.06l-8.69-8.69a.75.75 0 00-1.06 0z" />
+    <path d="M12.75 14.625a.75.75 0 00-1.06 0l-1.5 1.5a.75.75 0 000 1.06l.75.75a.75.75 0 001.06 0l1.5-1.5a.75.75 0 000-1.06l-.75-.75z" />
+    <path d="M16.5 11.25a.75.75 0 00-1.06 0l-1.5 1.5a.75.75 0 000 1.06l.75.75a.75.75 0 001.06 0l1.5-1.5a.75.75 0 000-1.06l-.75-.75z" />
+  </svg>
+`;
 
+// SVG for an apartment building.
+const apartmentIconSvg = (color: string) => `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${color}" class="w-8 h-8 drop-shadow-lg">
+    <path fill-rule="evenodd" d="M15 3.75A2.25 2.25 0 0012.75 6v12A2.25 2.25 0 0015 20.25h5.25A2.25 2.25 0 0022.5 18V6A2.25 2.25 0 0020.25 3.75H15zM16.5 6a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0116.5 6zm.75 4.5a.75.75 0 00-1.5 0v1.5a.75.75 0 001.5 0v-1.5zm-3 0a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0114.25 10.5zm.75 4.5a.75.75 0 00-1.5 0v1.5a.75.75 0 001.5 0v-1.5zM19.5 6a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0119.5 6zm.75 4.5a.75.75 0 00-1.5 0v1.5a.75.75 0 001.5 0v-1.5z" clip-rule="evenodd" />
+    <path d="M3.75 3.75A2.25 2.25 0 001.5 6v12A2.25 2.25 0 003.75 20.25H9A2.25 2.25 0 0011.25 18V6A2.25 2.25 0 009 3.75H3.75zM5.25 6a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 015.25 6zM6 10.5a.75.75 0 00-1.5 0v1.5a.75.75 0 001.5 0v-1.5zM5.25 15a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5a.75.75 0 01.75-.75zM9 6a.75.75 0 00-1.5 0v1.5a.75.75 0 001.5 0V6.75A.75.75 0 009 6zm-1.5 4.5a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 017.5 10.5z" />
+  </svg>
+`;
+
+const createPropertyIcon = (property: Property) => {
+  // Determine if a property is "new"
+  const isNew = /new|brand new|new build/i.test(property.features);
+  const color = isNew ? '#22c55e' : '#38bdf8'; // green-500 or sky-400
+
+  // Determine property type and select icon
+  let iconSvg;
+  const description = `${property.housingProject.toLowerCase()} ${property.features.toLowerCase()}`;
+  if (description.includes('apartment') || description.includes('شقة')) {
+    iconSvg = apartmentIconSvg(color);
+  } else {
+    // Default to house icon for villas, duplexes, etc.
+    iconSvg = houseIconSvg(color);
+  }
+
+  return new L.DivIcon({
+    html: iconSvg,
+    className: '', // important to clear default styling
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -32],
+  });
+};
+
+const MapLegend = () => (
+  <div className="leaflet-bottom leaflet-right">
+    <div className="leaflet-control leaflet-bar bg-gray-800/80 backdrop-blur-sm p-3 rounded-lg border border-gray-600 shadow-xl text-white text-xs w-36">
+      <h4 className="font-bold text-sm text-cyan-400 border-b border-gray-600 pb-1 mb-2">Legend</h4>
+      <div className="space-y-2">
+          <div className="flex items-center space-x-2">
+              <div className="w-5 h-5 flex-shrink-0" dangerouslySetInnerHTML={{ __html: apartmentIconSvg('#e0e0e0') }} />
+              <span>Apartment</span>
+          </div>
+          <div className="flex items-center space-x-2">
+              <div className="w-5 h-5 flex-shrink-0" dangerouslySetInnerHTML={{ __html: houseIconSvg('#e0e0e0') }} />
+              <span>Villa / House</span>
+          </div>
+      </div>
+      <div className="pt-2 mt-2 border-t border-gray-600 space-y-2">
+        <div className="flex items-center space-x-2">
+          <div className="w-4 h-4 rounded-full bg-green-500 flex-shrink-0" />
+          <span>New Listing</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="w-4 h-4 rounded-full bg-sky-400 flex-shrink-0" />
+          <span>Standard Listing</span>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+
+export const MapView: React.FC<MapViewProps> = ({ properties, onMarkerClick, center, zoom }) => {
   return (
     <MapContainer center={center} zoom={zoom} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
       <TileLayer
@@ -50,14 +107,7 @@ export const MapView: React.FC<MapViewProps> = ({ properties, onMarkerClick, cen
           eventHandlers={{
             click: () => onMarkerClick(property),
           }}
-          icon={new L.Icon({
-            iconUrl: getIconUrl(property.housingProject),
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41]
-          })}
+          icon={createPropertyIcon(property)}
         >
           <Popup>
             <div className="p-1">
@@ -73,6 +123,7 @@ export const MapView: React.FC<MapViewProps> = ({ properties, onMarkerClick, cen
           </Popup>
         </Marker>
       ))}
+      <MapLegend />
     </MapContainer>
   );
 };

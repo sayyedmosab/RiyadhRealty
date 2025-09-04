@@ -5,10 +5,13 @@ import { FilterPanel } from './components/FilterPanel';
 import { PropertyDetail } from './components/PropertyDetail';
 import { Loader } from './components/Loader';
 import { useProperties } from './hooks/useProperties';
-import type { Property, FilterState, AIAnalysis, ParsedProperty } from './types';
+import type { Property, FilterState, AIAnalysis, ParsedProperty, AppView } from './types';
 import { analyzeDescriptionWithAI, extractPropertyFromImage, getPropertyCoordinates } from './services/geminiService';
 import { UploadView } from './components/UploadView';
 import { Modal } from './components/Modal';
+import { BottomNav } from './components/BottomNav';
+import { PropertyListView } from './components/PropertyListView';
+
 
 const App: React.FC = () => {
   const { properties, setProperties, loading, error } = useProperties();
@@ -29,6 +32,9 @@ const App: React.FC = () => {
 
   // Mobile-specific state
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [activeView, setActiveView] = useState<AppView>('map');
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+
 
   const filteredProperties = useMemo(() => {
     return properties.filter(p => {
@@ -36,9 +42,6 @@ const App: React.FC = () => {
       const priceMatch = p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1];
       const bedroomMatch = filters.bedrooms === 'all' || p.bedrooms === filters.bedrooms;
       
-      // FIX: Add robust type checking before calling .toLowerCase(). 
-      // This prevents crashes if the AI returns a non-string value (e.g., an array), 
-      // which was the root cause of the stuck loader screen.
       const searchMatch = filters.searchTerm === '' ||
         (typeof p.housingProject === 'string' && p.housingProject.toLowerCase().includes(filters.searchTerm.toLowerCase())) ||
         (typeof p.features === 'string' && p.features.toLowerCase().includes(filters.searchTerm.toLowerCase()));
@@ -54,7 +57,8 @@ const App: React.FC = () => {
   
   const handleViewOnMap = useCallback((property: Property) => {
     setMapCenter([property.location.lat, property.location.lng]);
-    setMapZoom(15); // Zoom in closer to the selected property
+    setMapZoom(15);
+    setActiveView('map'); // Switch to map view on mobile
     setSelectedProperty(null); // Close the detail view
   }, []);
 
@@ -109,7 +113,7 @@ const App: React.FC = () => {
           ...parsedData,
           id: `upload-${file.name}-${Date.now()}`,
           location,
-          imageUrl: dataUrl, // Store the uploaded image itself
+          imageUrl: dataUrl,
         };
         
         setProperties(prev => [...prev, newProperty]);
@@ -129,7 +133,6 @@ const App: React.FC = () => {
   
   const handleAddProperty = useCallback((newProperty: Property) => {
     setProperties(prev => [...prev, newProperty]);
-    // Fly to the new property on the map
     setMapCenter([newProperty.location.lat, newProperty.location.lng]);
     setMapZoom(16);
   }, [setProperties]);
@@ -147,12 +150,12 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-gray-100 font-sans">
-      <Header onUploadClick={() => setIsUploadOpen(true)} />
+      <Header onUploadClick={() => setIsUploadOpen(true)} onFilterClick={() => setIsFilterPanelOpen(true)} />
 
       {loading && <Loader message="Initializing AI and loading property data..." />}
       {error && <div className="text-center p-4 text-red-400 bg-red-900">{error}</div>}
       
-      <main className="flex-1 flex md:flex-row overflow-hidden">
+      <main className="flex-1 flex md:flex-row overflow-hidden relative">
         {/* --- Desktop Left Panel --- */}
         <div className="hidden md:block w-1/3 lg:w-1/4 h-full overflow-y-auto bg-gray-800 border-r border-gray-700 shadow-lg">
           {selectedProperty ? (
@@ -179,32 +182,30 @@ const App: React.FC = () => {
         </div>
         
         {/* --- Main Content Area --- */}
-        <div className="flex-1 h-full relative">
+        <div className="flex-1 h-full">
             {/* Desktop Map */}
             <div className="hidden md:block h-full w-full">
                 <MapView properties={filteredProperties} onMarkerClick={handlePropertySelect} center={mapCenter} zoom={mapZoom} />
             </div>
 
-            {/* Mobile View: Map + Inline Filters */}
-            <div className="md:hidden flex flex-col h-full w-full overflow-y-auto">
-                <div className="h-[50vh] flex-shrink-0">
-                    <MapView properties={filteredProperties} onMarkerClick={handlePropertySelect} center={mapCenter} zoom={mapZoom} />
-                </div>
-                <div className="flex-grow bg-gray-800">
-                    <FilterPanel
-                        filters={filters}
-                        setFilters={setFilters}
-                        areas={uniqueAreas}
-                        bedrooms={uniqueBedroomCounts}
-                        propertyCount={filteredProperties.length}
-                        isOverlay={false}
-                        onAddProperty={handleAddProperty}
-                    />
-                </div>
+             {/* Mobile View */}
+            <div className="md:hidden h-full w-full">
+               {activeView === 'map' && (
+                  <MapView properties={filteredProperties} onMarkerClick={handlePropertySelect} center={mapCenter} zoom={mapZoom} />
+               )}
+               {activeView === 'list' && (
+                  <PropertyListView properties={filteredProperties} onPropertySelect={handlePropertySelect} />
+               )}
             </div>
+        </div>
+
+        {/* Mobile Bottom Nav */}
+        <div className="md:hidden absolute bottom-0 left-0 right-0 z-10">
+          <BottomNav activeView={activeView} setActiveView={setActiveView} />
         </div>
       </main>
 
+      {/* Mobile Property Detail Overlay */}
       {selectedProperty && (
          <div className="md:hidden absolute inset-0 z-50 bg-gray-800 animate-slide-in-up">
             <PropertyDetail
@@ -218,6 +219,22 @@ const App: React.FC = () => {
             />
          </div>
       )}
+
+      {/* Mobile Filter Panel Overlay */}
+       <Modal isOpen={isFilterPanelOpen} onClose={() => setIsFilterPanelOpen(false)} size="large">
+        <div className="h-full bg-gray-800">
+           <FilterPanel
+                filters={filters}
+                setFilters={setFilters}
+                areas={uniqueAreas}
+                bedrooms={uniqueBedroomCounts}
+                propertyCount={filteredProperties.length}
+                isOverlay={true}
+                onClose={() => setIsFilterPanelOpen(false)}
+                onAddProperty={handleAddProperty}
+            />
+        </div>
+      </Modal>
 
       <Modal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} size="large">
         <UploadView onProcess={handleImageUploadAndProcess} onClose={() => setIsUploadOpen(false)} />

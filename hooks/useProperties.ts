@@ -39,7 +39,22 @@ export const useProperties = () => {
           };
         });
 
-        setProperties(combinedProperties);
+        // Step 4: Remove duplicates based on a composite key before setting state.
+        const seen = new Set<string>();
+        const uniqueProperties = combinedProperties.filter(p => {
+            // Normalize features by removing extra whitespace to improve matching.
+            const normalizedFeatures = p.features.replace(/\s+/g, ' ').trim();
+            const key = `${p.area}|${p.housingProject}|${p.price}|${normalizedFeatures}`;
+            if (seen.has(key)) {
+                return false;
+            } else {
+                seen.add(key);
+                return true;
+            }
+        });
+
+
+        setProperties(uniqueProperties);
       } catch (err) {
         console.error("Failed to process property data:", err);
         // Handle specific configuration errors gracefully in the UI.

@@ -1,0 +1,5 @@
+{
+  "name": "Riyadh Realty Navigator",
+  "description": "An interactive map-based web application to explore, filter, and analyze real estate properties in Riyadh. It uses AI to provide insights into property listings and simulates finding new opportunities.",
+  "requestFramePermissions": []
+}

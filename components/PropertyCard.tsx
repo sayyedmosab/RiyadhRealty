@@ -23,8 +23,8 @@ export const PropertyCard: React.FC<{ property: Property, onClick: () => void }>
             className="bg-gray-800 rounded-xl shadow-lg overflow-hidden cursor-pointer border border-gray-700 transition-all duration-300 ease-in-out hover:border-cyan-500 hover:shadow-cyan-500/20 hover:-translate-y-1 active:scale-[0.98] active:bg-gray-700/50"
         >
             <img 
-                src={`https://picsum.photos/seed/${property.id}/400/250`} 
-                alt="Property placeholder"
+                src={property.imageUrl || `https://picsum.photos/seed/${property.id}/400/250`} 
+                alt={property.housingProject}
                 className="w-full h-48 object-cover"
             />
             <div className="p-4 space-y-3">

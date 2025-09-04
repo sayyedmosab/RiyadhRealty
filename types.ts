@@ -6,13 +6,14 @@ export interface Property {
   price: number;
   features: string;
   bedrooms: number | null;
+  imageUrl?: string; // To store the actual uploaded image URL
   location: {
     lat: number;
     lng: number;
   };
 }
 
-export type ParsedProperty = Omit<Property, 'id' | 'location'>;
+export type ParsedProperty = Omit<Property, 'id' | 'location' | 'imageUrl'>;
 
 export interface FilterState {
   area: string;

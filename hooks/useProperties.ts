@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Property, Coordinates } from '../types';
 import { parsePropertiesCSV, getPropertyCoordinates } from '../services/geminiService';
-import { RAW_CSV_DATA } from '../data/propertyData';
+import { getInitialLoadData } from '../data/propertyData';
 
 export const useProperties = () => {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -14,8 +14,8 @@ export const useProperties = () => {
         setError(null);
         setLoading(true);
         
-        // Step 1: Parse CSV data into structured JSON using AI
-        const parsedData = await parsePropertiesCSV(RAW_CSV_DATA);
+        // Step 1: Parse a smaller subset of CSV data for the initial load
+        const parsedData = await parsePropertiesCSV(getInitialLoadData());
 
         // Step 2: Get coordinates for each housing project using AI
         const projectNames = [...new Set(parsedData.map(p => p.housingProject))];
@@ -42,7 +42,12 @@ export const useProperties = () => {
         setProperties(combinedProperties);
       } catch (err) {
         console.error("Failed to process property data:", err);
-        setError("Could not load property data. The AI service may be unavailable. Please try again later.");
+        // Handle specific configuration errors gracefully in the UI.
+        if (err instanceof Error && err.message.startsWith("AI_SERVICE_CONFIG_ERROR")) {
+          setError("AI Service Configuration Error. Please contact the administrator to resolve the issue.");
+        } else {
+          setError("Could not load property data. The AI service may be unavailable. Please try again later.");
+        }
       } finally {
         setLoading(false);
       }

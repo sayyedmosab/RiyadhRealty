@@ -1,3 +1,11 @@
+export const getInitialLoadData = (): string => {
+  const lines = RAW_CSV_DATA.trim().split('\n');
+  const header = lines[0];
+  // Slice the first 2 data lines, plus the header
+  const dataLines = lines.slice(1, 3);
+  return [header, ...dataLines].join('\n');
+};
+
 export const RAW_CSV_DATA = `
 Area,File Name,Housing Project,Price,Features,,,,
 Al-Malqa,property_01_A.pdf,Malqa Residence,1250000,A modern three-bedroom apartment with a spacious living area,a fully equipped kitchen,and a maid's room. The unit features smart home technology,a private balcony with a city view,and access to the community pool and gym.

@@ -115,6 +115,7 @@ const App: React.FC = () => {
           ...parsedData,
           id: `upload-${file.name}-${Date.now()}`,
           location,
+          imageUrl: dataUrl, // Store the uploaded image itself
         };
         
         setProperties(prev => [...prev, newProperty]);

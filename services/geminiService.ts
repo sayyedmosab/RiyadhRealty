@@ -1,8 +1,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { AIAnalysis, ParsedProperty } from '../types';
 
-// FIX: Initialize GoogleGenAI strictly with process.env.API_KEY as per coding guidelines, removing the console warning and fallback key.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// A strict check for the API key is crucial for the application to function.
+// This prevents silent failures or difficult-to-debug 403 errors.
+const apiKey = process.env.API_KEY;
+if (!apiKey) {
+  // This will be caught by the calling hooks and services, allowing for graceful UI feedback.
+  throw new Error("AI_SERVICE_CONFIG_ERROR: The API_KEY environment variable is not set.");
+}
+
+const ai = new GoogleGenAI({ apiKey });
+
 
 /**
  * A robust JSON parser that cleans the AI's response before parsing.

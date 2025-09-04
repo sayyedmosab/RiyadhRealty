@@ -54,14 +54,16 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onClos
     <>
         <div className="relative mb-4">
             <img 
-                src={`https://picsum.photos/seed/${property.id}/400/250`} 
-                alt="Property placeholder" 
+                src={property.imageUrl || `https://picsum.photos/seed/${property.id}/400/250`} 
+                alt={property.housingProject} 
                 className="rounded-lg w-full h-48 object-cover"
             />
             <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/70 to-transparent rounded-b-lg">
                 <span className="text-2xl font-bold text-white drop-shadow-md">SAR {property.price.toLocaleString()}</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1 text-center">Placeholder image. This app cannot access your local files or Google Drive.</p>
+             {!property.imageUrl && (
+                <p className="text-xs text-gray-500 mt-1 text-center">Placeholder image used. Upload an ad to see a real image.</p>
+            )}
         </div>
 
         <div className="space-y-4 px-4 pb-4">

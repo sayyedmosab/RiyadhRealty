@@ -34,50 +34,6 @@ function robustJSONParse<T>(jsonString: string, errorMessage: string): T {
     }
 }
 
-export async function parsePropertiesCSV(csvData: string): Promise<ParsedProperty[]> {
-  const model = 'gemini-2.5-flash';
-  
-  const prompt = `You are a highly-tuned data processing API. Your sole function is to convert CSV data into a JSON array based on a schema.
-  
-  **Instructions:**
-  1. Parse the provided CSV data. The headers are: "Area", "File Name", "Housing Project", "Price", "Features".
-  2. For each row, create a JSON object.
-  3. The "Price" field must be a number.
-  4. From the "Features" text, infer the number of bedrooms (e.g., "three-bedroom" -> 3, "two-bedroom apartment" -> 2). If no bedroom count is explicitly mentioned, set "bedrooms" to null.
-  5. Ignore any extraneous empty fields or trailing commas in a row.
-  6. Your entire response must be ONLY the JSON array. Do not include any descriptive text, apologies, or markdown formatting.
-  
-  **CSV Data:**
-  \`\`\`csv
-  ${csvData}
-  \`\`\`
-  `;
-  
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
-    config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    area: { type: Type.STRING },
-                    fileName: { type: Type.STRING },
-                    housingProject: { type: Type.STRING },
-                    price: { type: Type.NUMBER },
-                    features: { type: Type.STRING },
-                    bedrooms: { type: Type.INTEGER, nullable: true },
-                }
-            }
-        }
-    }
-  });
-
-  return robustJSONParse<ParsedProperty[]>(response.text, "AI failed to return valid JSON for property data.");
-}
-
 export async function getPropertyCoordinates(projectNames: string[]): Promise<Record<string, { lat: number, lng: number } | null>> {
     const model = 'gemini-2.5-flash';
 

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { Property, Coordinates } from '../types';
-import { parsePropertiesCSV, getPropertyCoordinates } from '../services/geminiService';
-import { getInitialLoadData } from '../data/propertyData';
+import type { Property } from '../types';
+import { preprocessedProperties } from '../data/propertyData';
 
 export const useProperties = () => {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -9,67 +8,28 @@ export const useProperties = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchAndProcessData = async () => {
+    const loadData = () => {
       try {
         setError(null);
         setLoading(true);
         
-        // Step 1: Parse a smaller subset of CSV data for the initial load
-        const parsedData = await parsePropertiesCSV(getInitialLoadData());
+        // Directly use the pre-processed, local data. This is extremely fast.
+        // The data is already cleaned and deduplicated.
+        
+        // A minimal timeout prevents UI blocking on large datasets and ensures a smooth render.
+        setTimeout(() => {
+          setProperties(preprocessedProperties);
+          setLoading(false);
+        }, 50);
 
-        // Step 2: Get coordinates for each housing project using AI
-        const projectNames = [...new Set(parsedData.map(p => p.housingProject))];
-        const coordinatesMap = await getPropertyCoordinates(projectNames);
-
-        // Step 3: Combine data and add unique IDs
-        const combinedProperties: Property[] = parsedData.map((p, index) => {
-          const coords = coordinatesMap[p.housingProject];
-          
-          // Add robust validation for coordinates to prevent map errors
-          const isValidCoords = coords && typeof coords.lat === 'number' && typeof coords.lng === 'number';
-
-          const location: Coordinates = isValidCoords
-            ? { lat: coords.lat, lng: coords.lng }
-            : { lat: 24.7136, lng: 46.6753 }; // Default to Riyadh center if coords are missing or invalid
-
-          return {
-            ...p,
-            id: `${p.fileName}-${index}`,
-            location,
-          };
-        });
-
-        // Step 4: Remove duplicates based on a composite key before setting state.
-        const seen = new Set<string>();
-        const uniqueProperties = combinedProperties.filter(p => {
-            // Normalize features by removing extra whitespace to improve matching.
-            const normalizedFeatures = p.features.replace(/\s+/g, ' ').trim();
-            const key = `${p.area}|${p.housingProject}|${p.price}|${normalizedFeatures}`;
-            if (seen.has(key)) {
-                return false;
-            } else {
-                seen.add(key);
-                return true;
-            }
-        });
-
-
-        setProperties(uniqueProperties);
       } catch (err) {
-        console.error("Failed to process property data:", err);
-        // Handle specific configuration errors gracefully in the UI.
-        if (err instanceof Error && err.message.startsWith("AI_SERVICE_CONFIG_ERROR")) {
-          setError("AI Service Configuration Error. Please contact the administrator to resolve the issue.");
-        } else {
-          setError("Could not load property data. The AI service may be unavailable. Please try again later.");
-        }
-      } finally {
+        console.error("Failed to load pre-processed property data:", err);
+        setError("Could not load property data due to an internal error.");
         setLoading(false);
       }
     };
 
-    fetchAndProcessData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadData();
   }, []);
 
   return { properties, setProperties, loading, error };
